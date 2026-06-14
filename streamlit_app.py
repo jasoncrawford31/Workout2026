@@ -214,9 +214,9 @@ def get_google_spreadsheet():
 
 def get_google_worksheet(table_name: str, columns: list[str]):
     spreadsheet = get_google_spreadsheet()
-    try:
-        worksheet = spreadsheet.worksheet(table_name)
-    except gspread.WorksheetNotFound:
+    worksheets_by_title = {worksheet.title: worksheet for worksheet in spreadsheet.worksheets()}
+    worksheet = worksheets_by_title.get(table_name)
+    if worksheet is None:
         worksheet = spreadsheet.add_worksheet(title=table_name, rows=1000, cols=max(len(columns), 1))
 
     values = worksheet.get_all_values()
