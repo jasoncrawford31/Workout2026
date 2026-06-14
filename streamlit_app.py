@@ -16,6 +16,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).parent
 DATA_DIR = APP_DIR / "data"
+ICON_PATH = APP_DIR / "assets" / "ltwd_icon.png"
 WORKOUTS_CSV = DATA_DIR / "workouts.csv"
 NUTRITION_CSV = DATA_DIR / "nutrition.csv"
 PROGRESS_CSV = DATA_DIR / "progress.csv"
@@ -158,7 +159,7 @@ FOOD_DATABASE = {
 
 st.set_page_config(
     page_title="LTWD",
-    page_icon="F",
+    page_icon=str(ICON_PATH),
     layout="wide",
     initial_sidebar_state="collapsed",
 )

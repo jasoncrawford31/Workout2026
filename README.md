@@ -6,6 +6,10 @@ Lift Til We Die
 
 `streamlit_app.py`
 
+## App Icon
+
+The Streamlit page icon is stored at `assets/ltwd_icon.png`.
+
 ## Local Run
 
 ```bash
