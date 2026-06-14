@@ -6,6 +6,13 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+except ImportError:
+    gspread = None
+    Credentials = None
+
 
 APP_DIR = Path(__file__).parent
 DATA_DIR = APP_DIR / "data"
@@ -49,6 +56,12 @@ PROGRESS_COLUMNS = [
     "energy",
     "notes",
 ]
+
+TABLES = {
+    "workouts": {"csv": WORKOUTS_CSV, "columns": WORKOUT_COLUMNS},
+    "nutrition": {"csv": NUTRITION_CSV, "columns": NUTRITION_COLUMNS},
+    "progress": {"csv": PROGRESS_CSV, "columns": PROGRESS_COLUMNS},
+}
 
 DEFAULT_SETTINGS = {
     "age": 61,
@@ -162,7 +175,87 @@ def ensure_csv(path: Path, columns: list[str], defaults: dict | None = None) -> 
         pd.DataFrame(columns=columns).to_csv(path, index=False)
 
 
+def table_name_for_path(path: Path) -> str | None:
+    for table_name, config in TABLES.items():
+        if config["csv"] == path:
+            return table_name
+    return None
+
+
+def google_sheets_enabled() -> bool:
+    return (
+        gspread is not None
+        and Credentials is not None
+        and "google_sheets" in st.secrets
+        and "gcp_service_account" in st.secrets
+        and bool(st.secrets["google_sheets"].get("spreadsheet_id"))
+    )
+
+
+def storage_status_label() -> str:
+    if google_sheets_enabled():
+        return "Storage: Google Sheets"
+    return "Storage: local CSV fallback"
+
+
+@st.cache_resource
+def get_google_spreadsheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    credentials = Credentials.from_service_account_info(
+        dict(st.secrets["gcp_service_account"]),
+        scopes=scopes,
+    )
+    client = gspread.authorize(credentials)
+    return client.open_by_key(st.secrets["google_sheets"]["spreadsheet_id"])
+
+
+def get_google_worksheet(table_name: str, columns: list[str]):
+    spreadsheet = get_google_spreadsheet()
+    try:
+        worksheet = spreadsheet.worksheet(table_name)
+    except gspread.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title=table_name, rows=1000, cols=max(len(columns), 1))
+
+    values = worksheet.get_all_values()
+    if not values:
+        worksheet.update("A1", [columns])
+    return worksheet
+
+
+def load_google_sheet(table_name: str, columns: list[str]) -> pd.DataFrame:
+    worksheet = get_google_worksheet(table_name, columns)
+    values = worksheet.get_all_values()
+    if not values:
+        return pd.DataFrame(columns=columns)
+
+    header = values[0]
+    rows = values[1:]
+    df = pd.DataFrame(rows, columns=header)
+    for column in columns:
+        if column not in df.columns:
+            df[column] = None
+    return df[columns]
+
+
+def save_google_sheet(table_name: str, df: pd.DataFrame, columns: list[str]) -> None:
+    worksheet = get_google_worksheet(table_name, columns)
+    clean = df[columns].copy().fillna("")
+    values = [columns] + clean.astype(str).values.tolist()
+    worksheet.clear()
+    worksheet.update("A1", values)
+
+
 def load_csv(path: Path, columns: list[str], defaults: dict | None = None) -> pd.DataFrame:
+    table_name = table_name_for_path(path)
+    if table_name and google_sheets_enabled():
+        try:
+            return load_google_sheet(table_name, columns)
+        except Exception as exc:
+            st.warning(f"Google Sheets storage is not available right now, using local CSV instead. Details: {exc}")
+
     ensure_csv(path, columns, defaults)
     df = pd.read_csv(path)
     for column in columns:
@@ -172,6 +265,14 @@ def load_csv(path: Path, columns: list[str], defaults: dict | None = None) -> pd
 
 
 def save_csv(df: pd.DataFrame, path: Path, columns: list[str]) -> None:
+    table_name = table_name_for_path(path)
+    if table_name and google_sheets_enabled():
+        try:
+            save_google_sheet(table_name, df, columns)
+            return
+        except Exception as exc:
+            st.warning(f"Could not save to Google Sheets, saving local CSV instead. Details: {exc}")
+
     df[columns].to_csv(path, index=False)
 
 
@@ -573,6 +674,7 @@ def main() -> None:
 
     st.title("LTWD")
     st.caption("Lift Til We Die")
+    st.caption(storage_status_label())
 
     tabs = st.tabs(["Dashboard", "Workout Log", "Nutrition Log", "Progress Tracking"])
     with tabs[0]:
