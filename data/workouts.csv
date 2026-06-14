@@ -1,0 +1,5 @@
+date,workout_day,workout_type,exercise,set_number,reps,weight_lbs,notes,duration_min,effort
+2026-06-13,,Shoulders,,,8,0.0,,45,7
+2026-06-15,Monday,Shoulders,Seated dumbbell shoulder press,1.0,12,22.5,,60,7
+2026-06-15,Monday,Shoulders,Seated dumbbell shoulder press,2.0,12,25.0,,60,7
+2026-06-15,Monday,Shoulders,Seated dumbbell shoulder press,3.0,12,30.0,,60,7
