@@ -214,15 +214,27 @@ def get_google_spreadsheet():
 
 def get_google_worksheet(table_name: str, columns: list[str]):
     spreadsheet = get_google_spreadsheet()
-    worksheets_by_title = {worksheet.title: worksheet for worksheet in spreadsheet.worksheets()}
-    worksheet = worksheets_by_title.get(table_name)
+    normalized_name = table_name.strip().lower()
+    worksheets_by_title = {
+        worksheet.title.strip().lower(): worksheet
+        for worksheet in spreadsheet.worksheets()
+    }
+    worksheet = worksheets_by_title.get(normalized_name)
     if worksheet is None:
         try:
             worksheet = spreadsheet.add_worksheet(title=table_name, rows=1000, cols=max(len(columns), 1))
         except gspread.exceptions.APIError as exc:
             if "already exists" not in str(exc):
                 raise
-            worksheet = spreadsheet.worksheet(table_name)
+            get_google_spreadsheet.clear()
+            spreadsheet = get_google_spreadsheet()
+            worksheets_by_title = {
+                worksheet.title.strip().lower(): worksheet
+                for worksheet in spreadsheet.worksheets()
+            }
+            worksheet = worksheets_by_title.get(normalized_name)
+            if worksheet is None:
+                worksheet = spreadsheet.worksheet(table_name)
 
     values = worksheet.get_all_values()
     if not values:
