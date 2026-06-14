@@ -690,6 +690,8 @@ def main() -> None:
     progress = load_csv(PROGRESS_CSV, PROGRESS_COLUMNS)
     settings = DEFAULT_SETTINGS.copy()
 
+    if ICON_PATH.exists():
+        st.image(str(ICON_PATH), width=96)
     st.title("LTWD")
     st.caption("Lift Til We Die")
     st.caption(storage_status_label())
